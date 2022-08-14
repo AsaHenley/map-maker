@@ -1,0 +1,19 @@
+<DOCTYPE html>
+<html lang=en>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="style.css">
+	<script src="https://d3js.org/d3.v7.min.js" defer></script>
+	<script src="https://d3js.org/d3-voronoi.v1.min.js" defer></script>
+	<script src="https://cdn.jsdelivr.net/npm/d3-scale@4" defer></script>
+	<script src="mapmaker.js" defer></script>
+</head>
+<body>
+	<svg width='800' height='500'></svg>
+	<br><br><button onclick="createMap(islandsIn.valueAsNumber)">Generate Map</button>
+	<br><label>Number Of Islands:</label>
+	<input type="range" min="1" max="20" step="1" value="10" id="islandsIn" oninput="islandsOut.value = islandsIn.valueAsNumber">
+	<output id="islandsOut">10</output>
+</body>
+</html>
