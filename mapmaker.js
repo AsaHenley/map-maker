@@ -1,16 +1,15 @@
-var numPoints = 8000;
-var diagram, polygons, svg, cells, width, height, numLand;
+var numPoints = 10000;
+var diagram, polygons, svg, cells, width, height, coastline;
 var color = d3.scaleSequential(d3.interpolateSpectral);
 
 function generateGrid() {
   d3.select('.cells').remove();
+  d3.select('.coast').remove();
   svg = d3.select('svg');
-  cells = svg.append('g')
-              .classed('cells', true)
-              .on("click", () => {if(numLand == 0){addLandmass("mainLand");} else{addLandmass("smallIsland");} numLand++; });
+  cells = svg.append('g').classed('cells', true);
+  coast = svg.append('g').classed('coast', true);
   width = +svg.attr('width');
   height = +svg.attr('height');
-  numLand = 0;
   var points = d3.range(numPoints).map(() => [Math.random() * width, Math.random() * height]);
   // creating a voronoi layout and specifying the extent
   var voronoi = d3.voronoi().extent([[0, 0],[width, height]]);
@@ -23,20 +22,6 @@ function generateGrid() {
   findNeighbors(); 
 }
 
-
-function drawPolygons() {
-  // For every set of points defining a polygon, starting a new path on the svg object
-  // Drawing the path using the SVG attribute string and going from point to point given by the polygons  
-  polygons.map(function(p,i) {
-    var col = color(1 - p.alt);
-    if(p.alt <= 0.2){col = color(0.95);} // if the height is less than 0.2 define it as an ocean ie. set the color to blue
-    cells.append("path")
-     .attr("d", "M" + p.join("L") + "Z")
-     .attr("fill", col);
-    p.used = 0;
-  });
-}
-
 function findNeighbors(){
   polygons.map(function(p,i){
     p.alt = 0; //set its altitude to 0
@@ -46,13 +31,30 @@ function findNeighbors(){
       var neighborIndex;
       if(diaEdge.left && diaEdge.right){ // if there is a site on the left and right of the edge
         neighborIndex = diaEdge.left.index; // set the neighbor to be the left site
-        if (neighborIndex == i){ neighborIndex = diaEdge.right.index;} // if neighborIndex is current index set  neighbor to the right site
+        if (neighborIndex == i){ neighborIndex = diaEdge.right.index;} // if neighborIndex is current index set neighbor to the right site
         neighbors.push(neighborIndex); // add the index to the list of neighbors
       }
     })
     p.neighbors = neighbors;
   })
-  drawPolygons(polygons);
+}
+
+function findCoast(){
+  coastLine = [];
+  polygons.map(function(p,i){
+    if(p.alt > 0.2){ // if the polygon is land
+      diagram.cells[i].halfedges.forEach(function(e){
+        var diaEdge = diagram.edges[e];
+        if(diaEdge.left && diaEdge.right){
+          var possibleCoast = diaEdge.left.index; // this is index that may be coastline, this happens when left or right are ocean
+          if(possibleCoast == i){possibleCoast = diaEdge.right.index;}
+          if(polygons[possibleCoast].alt <= 0.2){ // this mean it is an ocean
+            coastLine.push({start: diaEdge[0], end: diaEdge[1]});
+          }
+        }
+      })
+    }
+  });
 }
 
 function addLandmass(x,y,type) {
@@ -84,7 +86,8 @@ function addLandmass(x,y,type) {
         }
       })
     }
-    drawPolygons(polygons)
+    polygons.map(function(p) {p.used = undefined;}); // mark all polygons as unused so next added land will still consider them
+   
 }
 
 function createMap(numIsland){
@@ -97,4 +100,20 @@ function createMap(numIsland){
     y = Math.random()*(height*0.8) + height*0.1;
     addLandmass(x, y, "smallIsland");
   }
+  findCoast();
+  // The code below displays the map
+  polygons.map(function(p, i) {
+    if(p.alt > 0.2){
+      cells.append("path")
+            .attr("d", "M" + p.join("L") + "Z") // creating an svg path using the d attribute and svg string notation
+            .attr("id", "poly"+i) // assigning each polygon an id of poly{index}
+      var col = color(1-p.alt);
+      cells.select("#poly"+i).attr("fill", col);
+    }
+  });
+  coastLine.map(function(c){
+    
+    coast.append("path")
+          .attr("d", "M"+ c.start + "L" + c.end + "Z");
+  });
 }

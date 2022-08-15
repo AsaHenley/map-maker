@@ -1,8 +1,14 @@
 svg{
-  background-color: #5E4FA2;;
+  background-color: #4A6CAE;;
 }
 
 .cells{
   fill: none;
   stroke: none;
+  shape-rendering: optimizeSpeed;
+}
+
+.coast{
+  stroke: black;
+  stroke-width: 1px;
 }
