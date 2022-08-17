@@ -5,4 +5,5 @@ I started by closesly following a log he has, found here, https://azgaar.wordpre
 
 I have since added my own code and have plans to improve this project straying away from Azgaar's methods.
 
-When the Generate Map button is clicked the code creates a new grid of polygons and generates one taller main land and then generates the specified of shorter blobs of land.
+When the Generate Map button is clicked the code creates a new grid of polygons and generates one taller main land and then generates the specified number of shorter blobs of land.
+

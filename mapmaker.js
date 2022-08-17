@@ -5,7 +5,7 @@ var color = d3.scaleSequential(d3.interpolateSpectral);
 function generateGrid() {
   d3.select('.cells').remove();
   d3.select('.coast').remove();
-  svg = d3.select('svg');
+  svg = d3.select('svg').on('mousemove', (e) => moved(e));
   cells = svg.append('g').classed('cells', true);
   coast = svg.append('g').classed('coast', true);
   width = +svg.attr('width');
@@ -43,17 +43,19 @@ function findCoast(){
   coastLine = [];
   polygons.map(function(p,i){
     if(p.alt > 0.2){ // if the polygon is land
+      p.type = 'land'; // set the type to land
       diagram.cells[i].halfedges.forEach(function(e){
         var diaEdge = diagram.edges[e];
         if(diaEdge.left && diaEdge.right){
-          var possibleCoast = diaEdge.left.index; // this is index that may be coastline, this happens when left or right are ocean
+          var possibleCoast = diaEdge.left.index; // this is index that may be coastline, this happens when left or right of land water
           if(possibleCoast == i){possibleCoast = diaEdge.right.index;}
-          if(polygons[possibleCoast].alt <= 0.2){ // this mean it is an ocean
-            coastLine.push({start: diaEdge[0], end: diaEdge[1]});
+          if(polygons[possibleCoast].alt <= 0.2){ // the cell is in fact water
+            coastLine.push({start: diaEdge[0], end: diaEdge[1]}); // add a new object that contains the start and end point for a coastline
           }
         }
       })
     }
+    else{p.type = 'lake';} // assume all non land cells are lakes, easier to set oceans by starting in a known ocean and flood filling
   });
 }
 
@@ -86,8 +88,26 @@ function addLandmass(x,y,type) {
         }
       })
     }
-    polygons.map(function(p) {p.used = undefined;}); // mark all polygons as unused so next added land will still consider them
-   
+    polygons.map(function(p) {p.used = undefined;}); // mark all polygons as unused so next added land will still consider them  
+}
+
+function setOceans(){
+  var curPoly = diagram.find(0,0).index; // starting in the top left corner, which is always an ocean
+  var queue = [];
+  queue.push(curPoly); // add the current polygon to the queue
+  polygons[curPoly].used = 1;
+  for(var i = 0; i < queue.length; i++){
+    curPoly = polygons[queue[i]]; // get the next polygon in the queue
+    curPoly.type = "ocean"; // set its type to ocean
+    curPoly.neighbors.forEach(function(j){
+      neighbor = polygons[j];
+      if(neighbor.alt <= 0.2 && neighbor.used == undefined){ // if the neighboring polygon is water and not already used
+        neighbor.used = 1;
+        queue.push(j); // add the neighbor to the queue
+      }
+    })
+  }
+  polygons.map(function(p) {p.used = undefined;});
 }
 
 function createMap(numIsland){
@@ -101,6 +121,7 @@ function createMap(numIsland){
     addLandmass(x, y, "smallIsland");
   }
   findCoast();
+  setOceans();
   // The code below displays the map
   polygons.map(function(p, i) {
     if(p.alt > 0.2){
@@ -112,8 +133,15 @@ function createMap(numIsland){
     }
   });
   coastLine.map(function(c){
-    
     coast.append("path")
           .attr("d", "M"+ c.start + "L" + c.end + "Z");
   });
+  
+}
+
+function moved(e){
+  var mousePos = d3.pointer(e);
+  var polyIndex = diagram.find(mousePos[0], mousePos[1]).index;
+  var curPoly = polygons[polyIndex];
+  document.getElementById("type").innerHTML = "Cell: " + curPoly.type + ", "+ curPoly.alt;
 }

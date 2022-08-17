@@ -10,9 +10,10 @@
 	<script src="mapmaker.js" defer></script>
 </head>
 <body>
-	<svg width='800' height='600'></svg>
+	<svg width='800' height='500'></svg>
 	<br><br><button onclick="createMap(islandsIn.valueAsNumber)">Generate Map</button>
-	<br><label>Number Of Islands:</label>
+	<p id="type">Cell: </p>
+	<label>Number Of Islands:</label>
 	<input type="range" min="1" max="20" step="1" value="10" id="islandsIn" oninput="islandsOut.value = islandsIn.valueAsNumber">
 	<output id="islandsOut">10</output>
 </body>
