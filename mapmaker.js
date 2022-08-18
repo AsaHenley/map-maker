@@ -1,5 +1,5 @@
 var numPoints = 10000;
-var diagram, polygons, svg, cells, width, height, coastline;
+var diagram, polygons, svg, cells, width, height, coastLine;
 var color = d3.scaleSequential(d3.interpolateSpectral);
 
 function generateGrid() {
@@ -39,26 +39,6 @@ function findNeighbors(){
   })
 }
 
-function findCoast(){
-  coastLine = [];
-  polygons.map(function(p,i){
-    if(p.alt > 0.2){ // if the polygon is land
-      p.type = 'land'; // set the type to land
-      diagram.cells[i].halfedges.forEach(function(e){
-        var diaEdge = diagram.edges[e];
-        if(diaEdge.left && diaEdge.right){
-          var possibleCoast = diaEdge.left.index; // this is index that may be coastline, this happens when left or right of land water
-          if(possibleCoast == i){possibleCoast = diaEdge.right.index;}
-          if(polygons[possibleCoast].alt <= 0.2){ // the cell is in fact water
-            coastLine.push({start: diaEdge[0], end: diaEdge[1]}); // add a new object that contains the start and end point for a coastline
-          }
-        }
-      })
-    }
-    else{p.type = 'lake';} // assume all non land cells are lakes, easier to set oceans by starting in a known ocean and flood filling
-  });
-}
-
 function addLandmass(x,y,type) {
     var startPoly = diagram.find(x, y).index;// finding the point in the diagram closed to this position
     if(type == "mainLand"){ // type mainland had a higher altitude and a sharpness value to avoid making a perfectly circular island
@@ -82,7 +62,8 @@ function addLandmass(x,y,type) {
         if (!curPoly.used){
           if(sharpness == 0){var mod = 1;} // if there is no sharpness there should be no modification
           else{mod = Math.random() * sharpness + 1.1 - sharpness;}
-          if(curPoly.alt < 1){curPoly.alt += alt * mod;} // add the calculated altitide to the polygon's current altitude
+          if(curPoly.alt >= 1){curPoly.alt = 1;} // if the altitude if greater than 1 set it to one
+          else{curPoly.alt += alt * mod;}// add the calculated altitide to the polygon's current altitude
           curPoly.used = 1;
           queue.push(j);
         }
@@ -91,23 +72,67 @@ function addLandmass(x,y,type) {
     polygons.map(function(p) {p.used = undefined;}); // mark all polygons as unused so next added land will still consider them  
 }
 
-function setOceans(){
-  var curPoly = diagram.find(0,0).index; // starting in the top left corner, which is always an ocean
+function setConnected(i, type, label, func){ // sets polygons connected to polygon i to the set type and label
   var queue = [];
-  queue.push(curPoly); // add the current polygon to the queue
-  polygons[curPoly].used = 1;
+  queue.push(i); // add the current polygon to the queue
   for(var i = 0; i < queue.length; i++){
-    curPoly = polygons[queue[i]]; // get the next polygon in the queue
-    curPoly.type = "ocean"; // set its type to ocean
+    var curPoly = polygons[queue[i]]; // get the next polygon in the queue
+    curPoly.type = type; // set its type and label
+    curPoly.label = label;
     curPoly.neighbors.forEach(function(j){
       neighbor = polygons[j];
-      if(neighbor.alt <= 0.2 && neighbor.used == undefined){ // if the neighboring polygon is water and not already used
-        neighbor.used = 1;
-        queue.push(j); // add the neighbor to the queue
+      if(neighbor.used == undefined){
+        if(func(neighbor.alt)){ // if the neighboring polygon is not already used and meets the given condition
+          neighbor.used = 1;
+          queue.push(j);
+        }
       }
-    })
+    });
   }
-  polygons.map(function(p) {p.used = undefined;});
+}
+
+function classifyMap(){
+  var islandNum = 0;
+  var lakeNum = 0;
+  var oceanStart = diagram.find(0,0).index; 
+  setConnected(oceanStart, 'ocean', -1, (n) => (n < 0.2)); // find all ocean cells first as there will only be one ocean
+  polygons.map(function(p,i){
+    if(p.used == undefined){ // first check if the polygon is labeled
+      if(p.alt >= 0.2){ // if the polygon is land
+        setConnected(i, 'island', islandNum, (n) => (n >= 0.2));
+        islandNum++;
+      } 
+      else{ // if the polygon is water
+        setConnected(i, 'lake', lakeNum, (n) => (n < 0.2));
+        lakeNum++;
+      } 
+    }
+  });
+  polygons.map(function(p) {p.used = undefined;})
+}
+
+function findCoast(){
+  coastLine = [];
+  polygons.map(function(p,i){
+    if(p.alt >= 0.2){ // if the polygon is land
+      diagram.cells[i].halfedges.forEach(function(e){
+        var diaEdge = diagram.edges[e];
+        if(diaEdge.left && diaEdge.right){
+          var possibleCoast = diaEdge.left.index; // this is index that may be coastline, this happens when left or right of land water
+          if(possibleCoast == i){possibleCoast = diaEdge.right.index;}
+          if(polygons[possibleCoast].alt < 0.2){ // the cell is in fact water
+            coastLine.push({
+              start: diaEdge[0], 
+              end: diaEdge[1],
+              type: polygons[possibleCoast].type, // is it ocean or lake coast
+              label: polygons[possibleCoast].label, // which lake is it
+              islandNum: p.label // which island is it associated with
+            });
+          }
+        }
+      })
+    }
+  });
 }
 
 function createMap(numIsland){
@@ -120,28 +145,27 @@ function createMap(numIsland){
     y = Math.random()*(height*0.8) + height*0.1;
     addLandmass(x, y, "smallIsland");
   }
+  classifyMap();
   findCoast();
-  setOceans();
   // The code below displays the map
   polygons.map(function(p, i) {
-    if(p.alt > 0.2){
+    if(p.alt >= 0.2){
       cells.append("path")
             .attr("d", "M" + p.join("L") + "Z") // creating an svg path using the d attribute and svg string notation
-            .attr("id", "poly"+i) // assigning each polygon an id of poly{index}
+            .attr("id", "poly"+i); // assigning each polygon an id of poly{index}
       var col = color(1-p.alt);
       cells.select("#poly"+i).attr("fill", col);
     }
   });
-  coastLine.map(function(c){
+  for(var i = 0; i < coastLine.length; i++){
     coast.append("path")
-          .attr("d", "M"+ c.start + "L" + c.end + "Z");
-  });
-  
+          .attr("d", "M"+ coastLine[i].start+"L"+coastLine[i].end+"Z");
+  }
 }
 
 function moved(e){
   var mousePos = d3.pointer(e);
   var polyIndex = diagram.find(mousePos[0], mousePos[1]).index;
   var curPoly = polygons[polyIndex];
-  document.getElementById("type").innerHTML = "Cell: " + curPoly.type + ", "+ curPoly.alt;
+  document.getElementById("type").innerHTML = "Cell: " + curPoly.type + " "+ curPoly.label;
 }
